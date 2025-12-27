@@ -79,9 +79,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize hotkey manager (starts listening for hotkeys)
         _ = HotkeyManager.shared
         
-        // Start OpenCode server if enabled
+        // Start OpenCode server
         Task {
-            await OpenCodeServerManager.shared.startServerIfNeeded()
+            await OpenCodeServerManager.shared.startServer()
         }
 
         // Setup window

@@ -118,74 +118,60 @@ struct NotchMenuView: View {
 struct ServerStatusRow: View {
     @ObservedObject var viewModel: NotchViewModel
     @State private var isHovered = false
-    @State private var isExpanded = false
-    @State private var serverURLText: String = AppSettings.serverURL ?? ""
-    @State private var autoStartServer: Bool = AppSettings.autoStartServer
+    
+    private let serverManager = OpenCodeServerManager.shared
     
     var body: some View {
-        VStack(spacing: 4) {
-            // Main status row
-            Button {
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: statusIcon)
-                        .font(.system(size: 12))
-                        .foregroundColor(statusColor)
-                        .frame(width: 16)
-                    
-                    Text("OpenCode Server")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(isHovered ? 1.0 : 0.7))
-                    
-                    Spacer()
-                    
-                    if case .connected = viewModel.connectionState {
-                        Circle()
-                            .fill(TerminalColors.green)
-                            .frame(width: 6, height: 6)
-                        Text("Connected")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
-                    } else if case .connecting = viewModel.connectionState {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 14, height: 14)
-                        Text("Connecting...")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
-                    } else {
-                        Text("Disconnected")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.4))
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isHovered ? Color.white.opacity(0.08) : Color.clear)
-                )
-            }
-            .buttonStyle(.plain)
-            .onHover { isHovered = $0 }
+        HStack(spacing: 10) {
+            Image(systemName: statusIcon)
+                .font(.system(size: 12))
+                .foregroundColor(statusColor)
+                .frame(width: 16)
             
-            // Expanded settings
-            if isExpanded {
-                ServerSettingsDropdown(
-                    viewModel: viewModel,
-                    serverURLText: $serverURLText,
-                    autoStartServer: $autoStartServer
-                )
+            Text("OpenCode Server")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(isHovered ? 1.0 : 0.7))
+            
+            Spacer()
+            
+            if case .connected = viewModel.connectionState {
+                Circle()
+                    .fill(TerminalColors.green)
+                    .frame(width: 6, height: 6)
+                Text("Port \(serverManager.serverPort)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.4))
+            } else if case .connecting = viewModel.connectionState {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 14, height: 14)
+                Text("Starting...")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+            } else if case .error(let message) = viewModel.connectionState {
+                Text(message)
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange)
+                    .lineLimit(1)
+            } else {
+                Button("Connect") {
+                    viewModel.reconnect()
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.white.opacity(0.15)))
+                .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color.white.opacity(0.08) : Color.clear)
+        )
+        .onHover { isHovered = $0 }
     }
     
     private var statusIcon: String {
@@ -212,147 +198,6 @@ struct ServerStatusRow: View {
         case .error:
             return .orange
         }
-    }
-}
-
-// MARK: - Server Settings Dropdown
-
-private struct ServerSettingsDropdown: View {
-    @ObservedObject var viewModel: NotchViewModel
-    @Binding var serverURLText: String
-    @Binding var autoStartServer: Bool
-    @State private var hasAppeared = false
-    @FocusState private var isURLFieldFocused: Bool
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            // Server URL field
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Server URL (leave empty for default)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.5))
-                
-                HStack(spacing: 8) {
-                    TextField("http://127.0.0.1:4096", text: $serverURLText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundColor(.white)
-                        .focused($isURLFieldFocused)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.08))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                        )
-                        .onSubmit {
-                            applyServerURL()
-                        }
-                    
-                    Button("Apply") {
-                        applyServerURL()
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Color.white.opacity(0.15)))
-                    .buttonStyle(.plain)
-                }
-            }
-            
-            // Auto-start toggle
-            Button {
-                autoStartServer.toggle()
-                AppSettings.autoStartServer = autoStartServer
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "play.circle")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.6))
-                        .frame(width: 14)
-                    
-                    Text("Auto-start server")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.8))
-                    
-                    Spacer()
-                    
-                    Circle()
-                        .fill(autoStartServer ? TerminalColors.green : Color.white.opacity(0.3))
-                        .frame(width: 6, height: 6)
-                    
-                    Text(autoStartServer ? "On" : "Off")
-                        .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.plain)
-            
-            // Connect/Disconnect button
-            HStack {
-                if case .connected = viewModel.connectionState {
-                    Button("Disconnect") {
-                        viewModel.disconnect()
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Color.red.opacity(0.3)))
-                    .buttonStyle(.plain)
-                } else {
-                    Button("Connect") {
-                        viewModel.reconnect()
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(Color.white.opacity(0.15)))
-                    .buttonStyle(.plain)
-                }
-                
-                Spacer()
-                
-                if !serverURLText.isEmpty {
-                    Button("Reset to Default") {
-                        serverURLText = ""
-                        applyServerURL()
-                    }
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.5))
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.white.opacity(0.05))
-        )
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : -8)
-        .onAppear {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                hasAppeared = true
-            }
-        }
-    }
-    
-    private func applyServerURL() {
-        let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        AppSettings.serverURL = trimmed.isEmpty ? nil : trimmed
-        
-        // Reinitialize client with new URL and reconnect
-        viewModel.openCodeService.reinitializeClient()
-        viewModel.reconnect()
     }
 }
 
@@ -532,16 +377,13 @@ private struct WorkingDirectoryDropdown: View {
     }
     
     private func restartServerIfNeeded() {
-        // If auto-start is enabled, restart the server with new directory
-        if AppSettings.autoStartServer {
-            Task {
-                OpenCodeServerManager.shared.stopServer()
-                await OpenCodeServerManager.shared.startServerIfNeeded()
-                // Reconnect after a brief delay
-                try? await Task.sleep(for: .seconds(1))
-                await MainActor.run {
-                    viewModel.reconnect()
-                }
+        // Restart the server with new directory
+        Task {
+            await OpenCodeServerManager.shared.restartServer()
+            // Reconnect after server restarts
+            try? await Task.sleep(for: .seconds(1))
+            await MainActor.run {
+                viewModel.reconnect()
             }
         }
     }

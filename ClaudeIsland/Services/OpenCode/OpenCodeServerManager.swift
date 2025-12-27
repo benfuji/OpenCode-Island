@@ -19,7 +19,8 @@ class OpenCodeServerManager: ObservableObject {
     // MARK: - Published State
     
     @Published private(set) var isRunning: Bool = false
-    @Published private(set) var serverPort: Int = 4096
+    @Published private(set) var serverPort: Int = 0
+    @Published private(set) var workingDirectory: String = ""
     @Published private(set) var errorMessage: String?
     
     // MARK: - Private State
@@ -27,7 +28,13 @@ class OpenCodeServerManager: ObservableObject {
     private var serverProcess: Process?
     private var outputPipe: Pipe?
     private var errorPipe: Pipe?
-    private var isOwnedProcess: Bool = false  // Did we start this server?
+    
+    // MARK: - Computed Properties
+    
+    /// The server URL for connecting
+    var serverURL: String {
+        "http://127.0.0.1:\(serverPort)"
+    }
     
     // MARK: - Initialization
     
@@ -35,37 +42,12 @@ class OpenCodeServerManager: ObservableObject {
     
     // MARK: - Server Lifecycle
     
-    /// Start the OpenCode server if auto-start is enabled and no server is running
-    func startServerIfNeeded() async {
-        // Skip if auto-start is disabled
-        guard AppSettings.autoStartServer else {
-            print("[ServerManager] Auto-start disabled, skipping")
-            return
-        }
-        
-        // Skip if custom URL is set (user is connecting to external server)
-        if let customURL = AppSettings.serverURL, !customURL.isEmpty {
-            print("[ServerManager] Custom URL set (\(customURL)), skipping auto-start")
-            return
-        }
-        
-        // Check if a server is already running on the default port
-        if await isServerAlreadyRunning() {
-            print("[ServerManager] Server already running on port \(serverPort)")
-            isRunning = true
-            isOwnedProcess = false
-            return
-        }
-        
-        // Start our own server
-        await startServer()
-    }
-    
-    /// Start the OpenCode server process
+    /// Start the OpenCode server with the configured working directory
     func startServer() async {
-        guard serverProcess == nil else {
-            print("[ServerManager] Server already started by us")
-            return
+        // Stop any existing server first
+        if serverProcess != nil {
+            stopServer()
+            try? await Task.sleep(for: .milliseconds(500))
         }
         
         // Find the opencode binary
@@ -75,15 +57,20 @@ class OpenCodeServerManager: ObservableObject {
             return
         }
         
+        // Get a random available port
+        let port = findAvailablePort()
+        
         // Get the working directory
-        let workingDirectory = AppSettings.effectiveWorkingDirectory
+        let workingDir = AppSettings.effectiveWorkingDirectory
+        
         print("[ServerManager] Starting OpenCode server from: \(opencodePath)")
-        print("[ServerManager] Working directory: \(workingDirectory)")
+        print("[ServerManager] Working directory: \(workingDir)")
+        print("[ServerManager] Port: \(port)")
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: opencodePath)
-        process.arguments = ["serve", "--port", "\(serverPort)"]
-        process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+        process.arguments = ["serve", "--port", "\(port)"]
+        process.currentDirectoryURL = URL(fileURLWithPath: workingDir)
         
         // Set up pipes to capture output
         let outputPipe = Pipe()
@@ -112,8 +99,9 @@ class OpenCodeServerManager: ObservableObject {
         
         do {
             try process.run()
+            serverPort = port
+            workingDirectory = workingDir
             isRunning = true
-            isOwnedProcess = true
             errorMessage = nil
             print("[ServerManager] Server process started with PID: \(process.processIdentifier)")
             
@@ -121,7 +109,7 @@ class OpenCodeServerManager: ObservableObject {
             startReadingOutput()
             
             // Wait a moment for server to initialize
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: .milliseconds(800))
             
         } catch {
             errorMessage = "Failed to start server: \(error.localizedDescription)"
@@ -133,8 +121,8 @@ class OpenCodeServerManager: ObservableObject {
     
     /// Stop the OpenCode server process
     func stopServer() {
-        guard let process = serverProcess, isOwnedProcess else {
-            print("[ServerManager] No owned server process to stop")
+        guard let process = serverProcess else {
+            print("[ServerManager] No server process to stop")
             return
         }
         
@@ -153,28 +141,63 @@ class OpenCodeServerManager: ObservableObject {
             Task { @MainActor in
                 self?.serverProcess = nil
                 self?.isRunning = false
-                self?.isOwnedProcess = false
+                self?.serverPort = 0
             }
         }
     }
     
-    /// Restart the server (stop and start)
+    /// Restart the server with current settings
     func restartServer() async {
         stopServer()
         try? await Task.sleep(for: .seconds(1))
         await startServer()
     }
     
+    /// Restart the server if the working directory has changed
+    func restartIfDirectoryChanged() async {
+        let expectedDir = AppSettings.effectiveWorkingDirectory
+        if isRunning && workingDirectory != expectedDir {
+            print("[ServerManager] Working directory changed from \(workingDirectory) to \(expectedDir), restarting...")
+            await restartServer()
+        }
+    }
+    
     // MARK: - Private Helpers
     
-    /// Check if an OpenCode server is already running on the target port
-    private func isServerAlreadyRunning() async -> Bool {
-        guard let components = AppSettings.serverComponents else {
-            return false
+    /// Find an available port for the server
+    private func findAvailablePort() -> Int {
+        // Start from a random port in a high range to avoid conflicts
+        let basePort = Int.random(in: 19000...19999)
+        
+        for offset in 0..<100 {
+            let port = basePort + offset
+            if isPortAvailable(port) {
+                return port
+            }
         }
         
-        let client = OpenCodeClient(port: components.port, hostname: components.host)
-        return await client.isServerRunning()
+        // Fallback to a random port if all in range are taken
+        return Int.random(in: 20000...29999)
+    }
+    
+    /// Check if a port is available
+    private func isPortAvailable(_ port: Int) -> Bool {
+        let socketFD = socket(AF_INET, SOCK_STREAM, 0)
+        guard socketFD >= 0 else { return false }
+        defer { close(socketFD) }
+        
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(port).bigEndian
+        addr.sin_addr.s_addr = INADDR_ANY
+        
+        let bindResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                bind(socketFD, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        
+        return bindResult == 0
     }
     
     /// Find the opencode binary in common locations
@@ -255,7 +278,7 @@ class OpenCodeServerManager: ObservableObject {
         
         serverProcess = nil
         isRunning = false
-        isOwnedProcess = false
+        serverPort = 0
         
         outputPipe?.fileHandleForReading.readabilityHandler = nil
         errorPipe?.fileHandleForReading.readabilityHandler = nil

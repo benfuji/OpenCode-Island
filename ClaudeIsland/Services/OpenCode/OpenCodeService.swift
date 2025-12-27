@@ -60,13 +60,16 @@ class OpenCodeService: ObservableObject {
         print("[OpenCodeService] \(message)")
     }
     
+    // MARK: - Server Manager
+    
+    private let serverManager = OpenCodeServerManager.shared
+    
     // MARK: - Initialization
     
     init() {
-        // Use configured server URL
-        let components = AppSettings.serverComponents ?? (host: "127.0.0.1", port: 4096)
-        self.client = OpenCodeClient(port: components.port, hostname: components.host)
-        print("[OpenCodeService] Initializing with server: \(components.host):\(components.port)")
+        // Client will be initialized when server starts
+        self.client = OpenCodeClient(port: 0, hostname: "127.0.0.1")
+        print("[OpenCodeService] Initialized, waiting for server to start")
     }
     
     deinit {
@@ -74,44 +77,49 @@ class OpenCodeService: ObservableObject {
         processingTask?.cancel()
     }
     
-    /// Reinitialize with current settings (call after changing server URL)
+    /// Reinitialize client with server manager's port
     func reinitializeClient() {
-        let components = AppSettings.serverComponents ?? (host: "127.0.0.1", port: 4096)
-        log("Reinitializing client with server: \(components.host):\(components.port)")
-        self.client = OpenCodeClient(port: components.port, hostname: components.host)
+        let port = serverManager.serverPort
+        log("Reinitializing client with port: \(port)")
+        self.client = OpenCodeClient(port: port, hostname: "127.0.0.1")
     }
     
     // MARK: - Connection Management
     
-    /// The server's current working directory (set on connect)
-    @Published private(set) var serverWorkingDirectory: String?
+    /// The server's current working directory (from server manager)
+    var serverWorkingDirectory: String? {
+        serverManager.isRunning ? serverManager.workingDirectory : nil
+    }
     
-    /// Connect to the OpenCode server
+    /// Connect to the OpenCode server (starts server if needed)
     func connect() async {
         log("connect() called, current state: \(connectionState)")
         connectionState = .connecting
         
         do {
+            // Start our own server instance
+            log("Starting OpenCode server...")
+            await serverManager.startServer()
+            
+            guard serverManager.isRunning else {
+                let error = serverManager.errorMessage ?? "Failed to start server"
+                log("Server failed to start: \(error)")
+                connectionState = .error(error)
+                return
+            }
+            
+            // Reinitialize client with the server's port
+            reinitializeClient()
+            log("Server running on port \(serverManager.serverPort)")
+            
             // Check server health
             log("Checking server health...")
             let health = try await client.health()
             serverVersion = health.version
             log("Server health OK, version: \(health.version)")
             
-            // Get server's working directory
-            log("Getting server path...")
-            let pathInfo = try await client.getPath()
-            serverWorkingDirectory = pathInfo.cwd
-            log("Server working directory: \(pathInfo.cwd)")
-            
-            // Check if it matches expected directory
-            let expectedDir = AppSettings.effectiveWorkingDirectory
-            if pathInfo.cwd != expectedDir {
-                log("WARNING: Server directory (\(pathInfo.cwd)) doesn't match expected (\(expectedDir))")
-                // Clear any persisted session since it's in a different directory
-                activeSessionID = nil
-                AppSettings.persistedSessionID = nil
-            }
+            // Clear any old session since we have a fresh server
+            activeSessionID = nil
             
             // Load agents
             log("Loading agents...")
@@ -123,7 +131,7 @@ class OpenCodeService: ObservableObject {
             try await loadProviders()
             
             connectionState = .connected
-            log("Connection successful!")
+            log("Connection successful! Working directory: \(serverManager.workingDirectory)")
             
             // Start listening to events for streaming
             startEventStream()
@@ -137,11 +145,12 @@ class OpenCodeService: ObservableObject {
         }
     }
     
-    /// Disconnect from the server
+    /// Disconnect from the server (stops the server)
     func disconnect() {
         log("disconnect() called")
         eventTask?.cancel()
         eventTask = nil
+        serverManager.stopServer()
         connectionState = .disconnected
     }
     
@@ -206,34 +215,20 @@ class OpenCodeService: ObservableObject {
     
     /// Get or create an active session
     func getOrCreateSession() async throws -> String {
-        let expectedDirectory = AppSettings.effectiveWorkingDirectory
-        
-        // If we have a persisted session ID, try to use it
-        if let sessionID = activeSessionID ?? AppSettings.persistedSessionID {
-            // Verify the session still exists and is in the correct directory
+        // If we have an active session, verify it still exists
+        if let sessionID = activeSessionID {
             do {
-                let session = try await client.getSession(id: sessionID)
-                
-                // Check if session directory matches expected working directory
-                if let sessionDir = session.directory, sessionDir != expectedDirectory {
-                    log("Session directory (\(sessionDir)) doesn't match expected (\(expectedDirectory)), creating new session")
-                    activeSessionID = nil
-                    AppSettings.persistedSessionID = nil
-                } else {
-                    activeSessionID = sessionID
-                    return sessionID
-                }
+                _ = try await client.getSession(id: sessionID)
+                return sessionID
             } catch {
-                // Session doesn't exist, clear it and create new one
+                // Session doesn't exist, clear it
                 activeSessionID = nil
-                AppSettings.persistedSessionID = nil
             }
         }
         
         // Create a new session
         let session = try await client.createSession(title: "OpenCode Island")
         activeSessionID = session.id
-        AppSettings.persistedSessionID = session.id
         log("Created new session: \(session.id) in directory: \(session.directory ?? "unknown")")
         return session.id
     }
@@ -241,7 +236,6 @@ class OpenCodeService: ObservableObject {
     /// Start a new session (clear current one)
     func newSession() async throws -> String {
         activeSessionID = nil
-        AppSettings.persistedSessionID = nil
         return try await getOrCreateSession()
     }
     
