@@ -396,7 +396,7 @@ struct PromptInputView: View {
             
             // Keyboard hint
             HStack {
-                Text("Enter to send \u{2022} Esc to dismiss \u{2022} \u{2318}V to paste images")
+                Text("\u{21E7}Enter for newline \u{2022} Enter to send \u{2022} Esc to dismiss \u{2022} \u{2318}V to paste images")
                     .font(.system(size: 11))
                     .foregroundColor(.white.opacity(0.3))
             }

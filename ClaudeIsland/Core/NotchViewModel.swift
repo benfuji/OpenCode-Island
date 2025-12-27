@@ -311,6 +311,16 @@ class NotchViewModel: ObservableObject {
             }
         }
         
+        // Enter key (keyCode 36) - submit prompt if in prompt mode
+        // Shift+Enter inserts newline (handled by TextEditor naturally)
+        if event.keyCode == 36 && contentType == .prompt {
+            if !event.modifierFlags.contains(.shift) {
+                // Plain Enter - submit
+                submitPrompt()
+            }
+            // Shift+Enter - let TextEditor handle it (inserts newline)
+        }
+        
         // Escape key (keyCode 53)
         if event.keyCode == 53 {
             if contentType == .result {
@@ -421,14 +431,14 @@ class NotchViewModel: ObservableObject {
             return
         }
         
-        // Reset to prompt view when opening fresh
+        // Switch to prompt view when opening, but preserve text and images
         if reason == .hotkey || reason == .click {
             contentType = .prompt
-            promptText = ""
+            // Don't clear promptText or attachedImages - preserve them when showing/hiding
             errorMessage = nil
             showAgentPicker = false
             
-            // Use default agent if set
+            // Use default agent if set (only if no agent selected)
             if selectedAgent == nil, let defaultAgentID = AppSettings.defaultAgentID {
                 selectedAgent = availableAgents.first { $0.id == defaultAgentID }
             }
