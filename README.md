@@ -5,9 +5,8 @@
     <br />
     <br />
   </p>
+  <video src="https://0o4pg1fpby.ufs.sh/f/RSbfEU0J8DcdGir6VARr8GV6gScZYRep5LWnjlF1fkaCoETK" width="600" autoplay loop muted playsinline></video>
 </div>
-
-<img width="646" height="193" alt="image" src="https://github.com/user-attachments/assets/cace824c-8a4f-4a07-8d9a-fbb7d5f1a6f5" />
 
 
 > **Note:** This project is inspired by [Claude Island](https://github.com/farouqaldori/claude-island) by [@farouqaldori](https://github.com/farouqaldori). It is **not affiliated with** [OpenCode](https://opencode.ai) or the OpenCode team.
