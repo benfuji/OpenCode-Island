@@ -60,17 +60,17 @@ jobs:
       - name: Resolve Swift Package Dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
-            -scheme ClaudeIsland \
-            -project ClaudeIsland.xcodeproj
+            -scheme OpenCodeIsland \
+            -project OpenCodeIsland.xcodeproj
             
       - name: Build and Sign App
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild archive \
-            -scheme ClaudeIsland \
+            -scheme OpenCodeIsland \
             -configuration Release \
-            -archivePath build/ClaudeIsland.xcarchive \
+            -archivePath build/OpenCodeIsland.xcarchive \
             -destination "generic/platform=macOS" \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
@@ -81,7 +81,7 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          APP_PATH="build/ClaudeIsland.xcarchive/Products/Applications/Claude Island.app"
+          APP_PATH="build/OpenCodeIsland.xcarchive/Products/Applications/OpenCode Island.app"
           SIGN_ID="Developer ID Application"
           
           # Sign all Sparkle binaries with hardened runtime and timestamp
@@ -152,15 +152,15 @@ jobs:
       - name: Create DMG
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          APP_PATH="build/ClaudeIsland.xcarchive/Products/Applications/Claude Island.app"
+          APP_PATH="build/OpenCodeIsland.xcarchive/Products/Applications/OpenCode Island.app"
           
           create-dmg \
             --volname "OpenCode Island" \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "Claude Island.app" 150 200 \
+            --icon "OpenCode Island.app" 150 200 \
             --app-drop-link 450 200 \
-            --hide-extension "Claude Island.app" \
+            --hide-extension "OpenCode Island.app" \
             "OpenCodeIsland-${VERSION}.dmg" \
             "$APP_PATH" || true
             
