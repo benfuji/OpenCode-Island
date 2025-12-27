@@ -318,15 +318,14 @@ struct PromptInputView: View {
             }
             
             // Text input (multiline)
-            HStack(alignment: .bottom, spacing: 10) {
-                ZStack(alignment: .topLeading) {
-                    // Placeholder
+            HStack(alignment: .center, spacing: 10) {
+                ZStack(alignment: .leading) {
+                    // Placeholder - vertically centered
                     if viewModel.promptText.isEmpty {
                         Text("Ask anything... (/ for agents)")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.4))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
+                            .padding(.leading, 14)
                             .allowsHitTesting(false)
                     }
                     
@@ -337,9 +336,8 @@ struct PromptInputView: View {
                         .focused(isInputFocused)
                         .scrollContentBackground(.hidden)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(minHeight: 40, maxHeight: 80)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 10)
+                        .frame(height: 44)
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 12)
@@ -377,7 +375,6 @@ struct PromptInputView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.promptText.isEmpty && viewModel.attachedImages.isEmpty)
-                .padding(.bottom, 6)
             }
             
             // Attached images preview
