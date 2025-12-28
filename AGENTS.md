@@ -10,16 +10,16 @@ OpenCode Island is a native macOS menu bar app (Swift/SwiftUI) that provides a D
 
 ```bash
 # Development build (unsigned)
-xcodebuild -scheme ClaudeIsland -configuration Debug build \
+xcodebuild -scheme OpenCodeIsland -configuration Debug build \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
 # Release build (unsigned)
-xcodebuild -scheme ClaudeIsland -configuration Release build \
+xcodebuild -scheme OpenCodeIsland -configuration Release build \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
 # Release archive (for distribution)
-xcodebuild archive -scheme ClaudeIsland -configuration Release \
-  -archivePath build/ClaudeIsland.xcarchive -destination "generic/platform=macOS" \
+xcodebuild archive -scheme OpenCodeIsland -configuration Release \
+  -archivePath build/OpenCodeIsland.xcarchive -destination "generic/platform=macOS" \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
 # Signed release build (requires Apple Developer ID)
@@ -43,7 +43,7 @@ No test suite currently exists. Add tests via Xcode: File > New > Target > Unit 
 ### File Structure
 
 ```
-ClaudeIsland/
+OpenCodeIsland/
   App/                  # App lifecycle (AppDelegate, WindowManager)
   Core/                 # HotkeyManager, NotchViewModel, NotchGeometry, Settings
   Events/               # EventMonitor for keyboard/mouse events
@@ -79,7 +79,7 @@ ClaudeIsland/
 ```swift
 //
 //  FileName.swift
-//  ClaudeIsland
+//  OpenCodeIsland
 //
 //  Brief description
 //
