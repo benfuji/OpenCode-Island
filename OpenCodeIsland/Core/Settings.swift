@@ -7,6 +7,41 @@
 
 import Foundation
 
+/// Available WhisperKit models for speech-to-text
+enum WhisperModel: String, CaseIterable, Codable {
+    case tiny = "tiny"
+    case base = "base"
+    case small = "small"
+    case medium = "medium"
+    case largev2 = "large-v2"
+    case largev3 = "large-v3"
+    case largev3Turbo = "large-v3-turbo"
+    
+    var displayName: String {
+        switch self {
+        case .tiny: return "Tiny (~40MB)"
+        case .base: return "Base (~75MB)"
+        case .small: return "Small (~250MB)"
+        case .medium: return "Medium (~750MB)"
+        case .largev2: return "Large v2 (~1.5GB)"
+        case .largev3: return "Large v3 (~1.5GB)"
+        case .largev3Turbo: return "Large v3 Turbo (~800MB)"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .tiny: return "Fastest, lowest accuracy"
+        case .base: return "Fast, good for dictation"
+        case .small: return "Balanced speed/accuracy"
+        case .medium: return "High accuracy, slower"
+        case .largev2: return "Very high accuracy"
+        case .largev3: return "Best accuracy"
+        case .largev3Turbo: return "Fast + high accuracy"
+        }
+    }
+}
+
 enum AppSettings {
     static let defaults = UserDefaults.standard
 
@@ -18,6 +53,7 @@ enum AppSettings {
         static let defaultAgentID = "defaultAgentID"
         static let defaultModelID = "defaultModelID"  // Format: "providerID/modelID"
         static let workingDirectory = "workingDirectory"
+        static let whisperModel = "whisperModel"
     }
 
     // MARK: - Hotkey Settings
@@ -55,5 +91,21 @@ enum AppSettings {
             return custom
         }
         return NSHomeDirectory()
+    }
+    
+    // MARK: - WhisperKit Settings
+    
+    /// User's preferred WhisperKit model for speech-to-text
+    static var whisperModel: WhisperModel {
+        get {
+            if let rawValue = defaults.string(forKey: Keys.whisperModel),
+               let model = WhisperModel(rawValue: rawValue) {
+                return model
+            }
+            return .base  // Default to base model
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Keys.whisperModel)
+        }
     }
 }

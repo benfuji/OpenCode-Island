@@ -20,82 +20,88 @@ struct NotchMenuView: View {
     @State private var launchAtLogin: Bool = false
 
     var body: some View {
-        VStack(spacing: 4) {
-            // Back button
-            MenuRow(
-                icon: "chevron.left",
-                label: "Back"
-            ) {
-                viewModel.toggleMenu()
-            }
-
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.vertical, 4)
-            
-            // Server connection status
-            ServerStatusRow(viewModel: viewModel)
-            
-            // Working directory
-            WorkingDirectoryRow(viewModel: viewModel)
-
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.vertical, 4)
-
-            // Hotkey settings
-            HotkeyPickerRow(selection: $hotkeyManager.hotkey)
-
-            // Appearance settings
-            ScreenPickerRow()
-
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.vertical, 4)
-
-            // System settings
-            MenuToggleRow(
-                icon: "power",
-                label: "Launch at Login",
-                isOn: launchAtLogin
-            ) {
-                do {
-                    if launchAtLogin {
-                        try SMAppService.mainApp.unregister()
-                        launchAtLogin = false
-                    } else {
-                        try SMAppService.mainApp.register()
-                        launchAtLogin = true
-                    }
-                } catch {
-                    print("Failed to toggle launch at login: \(error)")
+        ScrollView {
+            VStack(spacing: 4) {
+                // Back button
+                MenuRow(
+                    icon: "chevron.left",
+                    label: "Back"
+                ) {
+                    viewModel.toggleMenu()
                 }
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 4)
+                
+                // Server connection status
+                ServerStatusRow(viewModel: viewModel)
+                
+                // Working directory
+                WorkingDirectoryRow(viewModel: viewModel)
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 4)
+
+                // Hotkey settings
+                HotkeyPickerRow(selection: $hotkeyManager.hotkey)
+
+                // Appearance settings
+                ScreenPickerRow()
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 4)
+
+                // System settings
+                MenuToggleRow(
+                    icon: "power",
+                    label: "Launch at Login",
+                    isOn: launchAtLogin
+                ) {
+                    do {
+                        if launchAtLogin {
+                            try SMAppService.mainApp.unregister()
+                            launchAtLogin = false
+                        } else {
+                            try SMAppService.mainApp.register()
+                            launchAtLogin = true
+                        }
+                    } catch {
+                        print("Failed to toggle launch at login: \(error)")
+                    }
+                }
+
+                AccessibilityRow(isEnabled: AXIsProcessTrusted())
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 4)
+
+                // Agents section with default agent picker
+                AgentsSection(viewModel: viewModel)
+                
+                // Models section with default model picker
+                ModelsSection(viewModel: viewModel)
+                
+                // Whisper model section for speech-to-text
+                WhisperModelSection()
+
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 4)
+
+                // About / Updates
+                AboutRow()
+                
+                // Quit
+                QuitRow()
             }
-
-            AccessibilityRow(isEnabled: AXIsProcessTrusted())
-
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.vertical, 4)
-
-            // Agents section with default agent picker
-            AgentsSection(viewModel: viewModel)
-            
-            // Models section with default model picker
-            ModelsSection(viewModel: viewModel)
-
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.vertical, 4)
-
-            // About / Updates
-            AboutRow()
-            
-            // Quit
-            QuitRow()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             refreshStates()
@@ -913,6 +919,151 @@ private struct ModelDefaultRow: View {
                     Text("Server Default")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
+                }
+                
+                Spacer()
+                
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovering ? Color.white.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
+// MARK: - Whisper Model Section
+
+struct WhisperModelSection: View {
+    @State private var isExpanded = false
+    @State private var isHovered = false
+    @State private var selectedModel = AppSettings.whisperModel
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(isHovered ? 1.0 : 0.7))
+                        .frame(width: 16)
+
+                    Text("Whisper Model")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(isHovered ? 1.0 : 0.7))
+
+                    Spacer()
+
+                    Text(selectedModel.displayName)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.4))
+                        .lineLimit(1)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isHovered ? Color.white.opacity(0.08) : Color.clear)
+                )
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
+
+            if isExpanded {
+                WhisperModelDropdown(
+                    selectedModel: $selectedModel,
+                    isExpanded: $isExpanded
+                )
+            }
+        }
+    }
+}
+
+/// Dropdown for selecting Whisper model
+private struct WhisperModelDropdown: View {
+    @Binding var selectedModel: WhisperModel
+    @Binding var isExpanded: Bool
+    @State private var hasAppeared = false
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            ForEach(WhisperModel.allCases, id: \.self) { model in
+                WhisperModelRow(
+                    model: model,
+                    isSelected: selectedModel == model
+                ) {
+                    selectedModel = model
+                    AppSettings.whisperModel = model
+                    
+                    // Trigger model reload in SpeechService
+                    Task {
+                        await SpeechService.shared.reloadModelIfNeeded()
+                    }
+                    
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        isExpanded = false
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.05))
+        )
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : -8)
+        .onAppear {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                hasAppeared = true
+            }
+        }
+    }
+}
+
+/// Row for selecting Whisper model
+private struct WhisperModelRow: View {
+    let model: WhisperModel
+    let isSelected: Bool
+    let onSelect: () -> Void
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(width: 16)
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                    Text(model.description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.5))
+                        .lineLimit(1)
                 }
                 
                 Spacer()

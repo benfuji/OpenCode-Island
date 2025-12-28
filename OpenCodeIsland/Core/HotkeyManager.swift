@@ -89,9 +89,18 @@ class HotkeyManager: ObservableObject {
         }
     }
     
+    /// Whether the modifier key is currently being held (for dictation)
+    @Published private(set) var isHoldingModifier: Bool = false
+    
     // MARK: - Hotkey Activation
     
     let activated = PassthroughSubject<Void, Never>()
+    
+    /// Fires when user starts holding modifier after activation (for dictation)
+    let dictationStarted = PassthroughSubject<Void, Never>()
+    
+    /// Fires when user releases modifier after holding (end dictation)
+    let dictationEnded = PassthroughSubject<Void, Never>()
     
     // MARK: - Private State
     
@@ -103,6 +112,16 @@ class HotkeyManager: ObservableObject {
     
     // Track if modifier was pressed alone (no other keys)
     private var modifierPressedAlone = false
+    
+    // Track post-activation hold state
+    private var justActivated = false
+    private var holdStartTime: Date?
+    private var waitingForDictationHold = false  // True when we're waiting to see if user holds for dictation
+    private let holdThreshold: TimeInterval = 0.15  // Minimum hold time to trigger dictation
+    
+    /// Callback to check if the island is currently open and can accept dictation
+    /// Returns true if dictation should be allowed
+    var canStartDictation: (() -> Bool)?
     
     // MARK: - Initialization
     
@@ -169,15 +188,46 @@ class HotkeyManager: ObservableObject {
         if !wasPressed && isPressed && onlyTargetPressed {
             // Modifier just pressed (alone)
             modifierPressedAlone = true
+            
+            // Check if this is a press right after activation (for hold-to-dictate)
+            // OR if the island is already open and can accept dictation
+            let canDictate = justActivated || (canStartDictation?() ?? false)
+            if canDictate {
+                holdStartTime = Date()
+                waitingForDictationHold = true
+                // Schedule check for hold
+                DispatchQueue.main.asyncAfter(deadline: .now() + holdThreshold) { [weak self] in
+                    self?.checkForHoldStart(targetFlag: targetFlag)
+                }
+            }
         } else if wasPressed && !isPressed && modifierPressedAlone {
             // Modifier just released after being pressed alone
             let now = Date()
+            
+            // Check if we were holding for dictation
+            if isHoldingModifier {
+                isHoldingModifier = false
+                dictationEnded.send(())
+                justActivated = false
+                holdStartTime = nil
+                waitingForDictationHold = false
+                modifierPressedAlone = false
+                return
+            }
+            
+            // Reset hold state if released before dictation started
+            if justActivated || waitingForDictationHold {
+                justActivated = false
+                holdStartTime = nil
+                waitingForDictationHold = false
+            }
             
             if let lastPress = lastModifierPress,
                now.timeIntervalSince(lastPress) < doubleTapThreshold {
                 // Double-tap detected!
                 activated.send(())
                 lastModifierPress = nil
+                justActivated = true  // Mark that we just activated - next press can trigger dictation
             } else {
                 lastModifierPress = now
             }
@@ -186,6 +236,24 @@ class HotkeyManager: ObservableObject {
         } else if isPressed && !onlyTargetPressed {
             // Another key was pressed while modifier held - not a clean tap
             modifierPressedAlone = false
+            justActivated = false
+            holdStartTime = nil
+            waitingForDictationHold = false
+        }
+    }
+    
+    /// Check if modifier is still held after activation (triggers dictation)
+    private func checkForHoldStart(targetFlag: NSEvent.ModifierFlags) {
+        guard waitingForDictationHold, holdStartTime != nil else { return }
+        
+        // Check if modifier is still being held
+        let currentFlags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if currentFlags.contains(targetFlag) && !isHoldingModifier {
+            // User is holding - start dictation mode
+            isHoldingModifier = true
+            waitingForDictationHold = false
+            dictationStarted.send(())
+            print("[HotkeyManager] Dictation started - modifier held")
         }
     }
     

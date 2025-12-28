@@ -67,6 +67,15 @@
             ReferencedContainer = "container:ClaudeIsland.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "FD33FD5C2EDF32D7002A6548"
+            BuildableName = "Claude Island.app"
+            BlueprintName = "ClaudeIsland"
+            ReferencedContainer = "container:ClaudeIsland.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

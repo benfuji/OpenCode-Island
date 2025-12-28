@@ -71,6 +71,14 @@ class NotchViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var attachedImages: [AttachedImage] = []
     
+    // MARK: - Dictation State
+    
+    @Published var isDictating: Bool = false
+    @Published var isTranscribing: Bool = false
+    
+    /// Speech service for dictation
+    let speechService = SpeechService.shared
+    
     /// Tracks if we have a pending retry (error occurred in background)
     @Published var hasPendingRetry: Bool = false
     
@@ -199,7 +207,7 @@ class NotchViewModel: ObservableObject {
         case .menu:
             return CGSize(
                 width: min(screenRect.width * 0.4, 480),
-                height: 850  // Increased to accommodate expanded dropdowns (agents + models)
+                height: 950  // Increased to accommodate expanded dropdowns (agents + models + whisper)
             )
         }
     }
@@ -236,6 +244,16 @@ class NotchViewModel: ObservableObject {
         setupEventHandlers()
         setupHotkeyHandler()
         setupServiceObservers()
+        
+        // Provide callback for dictation availability check
+        hotkeyManager.canStartDictation = { [weak self] in
+            guard let self = self else { return false }
+            // Allow dictation if island is open in prompt mode and not already dictating
+            return self.status == .opened && 
+                   self.contentType == .prompt && 
+                   !self.isDictating && 
+                   !self.isTranscribing
+        }
         
         // Connect to OpenCode server on init
         Task {
@@ -376,6 +394,22 @@ class NotchViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
                 self?.handleHotkey()
+            }
+            .store(in: &cancellables)
+        
+        // Handle dictation start (user holds modifier after activation)
+        hotkeyManager.dictationStarted
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.startDictation()
+            }
+            .store(in: &cancellables)
+        
+        // Handle dictation end (user releases modifier)
+        hotkeyManager.dictationEnded
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.stopDictation()
             }
             .store(in: &cancellables)
     }
@@ -784,5 +818,77 @@ class NotchViewModel: ObservableObject {
             guard let self = self, self.openReason == .boot else { return }
             self.notchClose()
         }
+    }
+    
+    // MARK: - Dictation
+    
+    /// Start dictation mode (called when user holds modifier after hotkey activation)
+    func startDictation() {
+        log("startDictation() called - status: \(status), contentType: \(contentType)")
+        
+        guard status == .opened, contentType == .prompt else {
+            log("Cannot start dictation - not in prompt mode")
+            return
+        }
+        
+        // Set dictating state immediately for visual feedback
+        isDictating = true
+        log("Dictation UI activated")
+        
+        Task {
+            // Load model if needed
+            if speechService.state == .idle {
+                log("Loading speech model...")
+                await speechService.loadModel()
+            }
+            
+            // Wait for model to be ready
+            guard speechService.state == .ready else {
+                log("Speech service not ready: \(speechService.state)")
+                isDictating = false
+                return
+            }
+            
+            // Start recording
+            log("Starting audio recording...")
+            let started = await speechService.startRecording()
+            if started {
+                log("Audio recording started successfully")
+            } else {
+                log("Failed to start audio recording")
+                isDictating = false
+            }
+        }
+    }
+    
+    /// Stop dictation and transcribe (called when user releases modifier)
+    func stopDictation() {
+        guard isDictating else { return }
+        
+        log("Stopping dictation...")
+        isDictating = false
+        isTranscribing = true
+        
+        Task {
+            if let transcription = await speechService.stopRecordingAndTranscribe() {
+                // Append transcription to prompt text
+                if promptText.isEmpty {
+                    promptText = transcription
+                } else {
+                    promptText += " " + transcription
+                }
+                log("Transcription added: \(transcription)")
+            }
+            isTranscribing = false
+        }
+    }
+    
+    /// Cancel dictation without transcribing
+    func cancelDictation() {
+        guard isDictating else { return }
+        
+        log("Cancelling dictation...")
+        isDictating = false
+        speechService.cancelRecording()
     }
 }

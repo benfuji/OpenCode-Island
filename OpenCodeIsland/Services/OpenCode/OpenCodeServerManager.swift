@@ -202,53 +202,160 @@ class OpenCodeServerManager: ObservableObject {
     
     /// Find the opencode binary in common locations
     private func findOpencodeBinary() -> String? {
+        let home = NSHomeDirectory()
+        
+        // Check all common installation paths
         let possiblePaths = [
-            "\(NSHomeDirectory())/.opencode/bin/opencode",  // Default install location
-            "/usr/local/bin/opencode",
+            // OpenCode default
+            "\(home)/.opencode/bin/opencode",
+            // Bun
+            "\(home)/.bun/bin/opencode",
+            // npm/pnpm global
+            "\(home)/.npm-global/bin/opencode",
+            "\(home)/.pnpm-global/bin/opencode",
+            "\(home)/.local/share/pnpm/opencode",
+            // Node version managers
+            "\(home)/.nvm/versions/node/*/bin/opencode",  // Will be checked via glob-like expansion below
+            "\(home)/.n/bin/opencode",
+            "\(home)/.volta/bin/opencode",
+            "\(home)/.fnm/aliases/default/bin/opencode",
+            // Homebrew
             "/opt/homebrew/bin/opencode",
-            "\(NSHomeDirectory())/.local/bin/opencode",
-            "\(NSHomeDirectory())/go/bin/opencode",
+            "/usr/local/bin/opencode",
+            // Go
+            "\(home)/go/bin/opencode",
+            // Cargo/Rust
+            "\(home)/.cargo/bin/opencode",
+            // Generic local
+            "\(home)/.local/bin/opencode",
+            // System
             "/usr/bin/opencode"
         ]
         
-        // Also check PATH
+        // Check specific paths first (fast)
+        for path in possiblePaths {
+            // Handle wildcard paths (like nvm)
+            if path.contains("*") {
+                if let expandedPath = expandWildcardPath(path) {
+                    return expandedPath
+                }
+            } else if FileManager.default.isExecutableFile(atPath: path) {
+                print("[ServerManager] Found opencode at: \(path)")
+                return path
+            }
+        }
+        
+        // Also check current process PATH (may be limited for GUI apps)
         if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
             let pathDirs = pathEnv.split(separator: ":").map(String.init)
             for dir in pathDirs {
                 let fullPath = "\(dir)/opencode"
                 if FileManager.default.isExecutableFile(atPath: fullPath) {
+                    print("[ServerManager] Found opencode in PATH at: \(fullPath)")
                     return fullPath
                 }
             }
         }
         
-        // Check specific paths
-        for path in possiblePaths {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
+        // Try using shell to get full user PATH (handles .bashrc, .zshrc, etc.)
+        if let shellPath = findViaShell() {
+            return shellPath
+        }
+        
+        return nil
+    }
+    
+    /// Expand a path containing wildcards (e.g., for nvm)
+    private func expandWildcardPath(_ pattern: String) -> String? {
+        let components = pattern.split(separator: "/", omittingEmptySubsequences: false)
+        var currentPath = ""
+        
+        for component in components {
+            if component.isEmpty {
+                currentPath = "/"
+                continue
+            }
+            
+            if component.contains("*") {
+                // Expand this directory
+                let searchPath = currentPath.isEmpty ? "/" : currentPath
+                guard let contents = try? FileManager.default.contentsOfDirectory(atPath: searchPath) else {
+                    return nil
+                }
+                
+                // Find matching directories
+                let pattern = String(component)
+                for item in contents {
+                    if matchesWildcard(item, pattern: pattern) {
+                        let expandedPath = "\(searchPath)/\(item)"
+                        // Continue with rest of path
+                        let remaining = components.dropFirst(components.firstIndex(of: component)! + 1)
+                        if remaining.isEmpty {
+                            if FileManager.default.isExecutableFile(atPath: expandedPath) {
+                                return expandedPath
+                            }
+                        } else {
+                            let restPattern = remaining.joined(separator: "/")
+                            if let result = expandWildcardPath("\(expandedPath)/\(restPattern)") {
+                                return result
+                            }
+                        }
+                    }
+                }
+                return nil
+            } else {
+                currentPath = currentPath.isEmpty ? "/\(component)" : "\(currentPath)/\(component)"
             }
         }
         
-        // Try using `which` as fallback
-        let whichProcess = Process()
-        whichProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        whichProcess.arguments = ["opencode"]
+        if FileManager.default.isExecutableFile(atPath: currentPath) {
+            return currentPath
+        }
+        return nil
+    }
+    
+    /// Simple wildcard matching (only supports * for now)
+    private func matchesWildcard(_ string: String, pattern: String) -> Bool {
+        if pattern == "*" { return true }
+        if !pattern.contains("*") { return string == pattern }
+        
+        // Simple prefix/suffix matching
+        let parts = pattern.split(separator: "*", omittingEmptySubsequences: false)
+        if parts.count == 2 {
+            let prefix = String(parts[0])
+            let suffix = String(parts[1])
+            return string.hasPrefix(prefix) && string.hasSuffix(suffix)
+        }
+        return false
+    }
+    
+    /// Try to find opencode using the user's shell environment
+    private func findViaShell() -> String? {
+        // Determine the user's login shell
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shell)
+        // Use -l for login shell (loads .zshrc/.bashrc), -c to run command
+        process.arguments = ["-l", "-c", "which opencode"]
         
         let pipe = Pipe()
-        whichProcess.standardOutput = pipe
-        whichProcess.standardError = FileHandle.nullDevice
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
         
         do {
-            try whichProcess.run()
-            whichProcess.waitUntilExit()
+            try process.run()
+            process.waitUntilExit()
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !output.isEmpty {
+               !output.isEmpty,
+               FileManager.default.isExecutableFile(atPath: output) {
+                print("[ServerManager] Found opencode via shell at: \(output)")
                 return output
             }
         } catch {
-            print("[ServerManager] which command failed: \(error)")
+            print("[ServerManager] Shell lookup failed: \(error)")
         }
         
         return nil

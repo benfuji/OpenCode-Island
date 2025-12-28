@@ -337,6 +337,11 @@ struct PromptInputView: View {
                 ConnectionStatusBanner(viewModel: viewModel)
             }
             
+            // Speech model loading indicator
+            if viewModel.speechService.state == .loading {
+                SpeechModelLoadingBanner(speechService: viewModel.speechService)
+            }
+            
             // Error message if any
             if let error = viewModel.errorMessage {
                 HStack {
@@ -366,67 +371,82 @@ struct PromptInputView: View {
                 }
             }
             
-            // Text input (multiline)
-            HStack(alignment: .bottom, spacing: 10) {
-                ZStack(alignment: isSingleLine ? .leading : .topLeading) {
-                    // Placeholder - vertically centered
-                    if viewModel.promptText.isEmpty {
-                        Text("Ask anything... (/ for agents)")
+            // Text input OR dictation waveform
+            if viewModel.isDictating || viewModel.isTranscribing {
+                // Dictation mode - show waveform visualizer
+                DictationWaveformView(
+                    isDictating: viewModel.isDictating,
+                    isTranscribing: viewModel.isTranscribing,
+                    audioLevel: viewModel.speechService.audioLevel
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .opacity
+                ))
+            } else {
+                // Normal text input
+                HStack(alignment: .bottom, spacing: 10) {
+                    ZStack(alignment: isSingleLine ? .leading : .topLeading) {
+                        // Placeholder - vertically centered
+                        if viewModel.promptText.isEmpty {
+                            Text("Ask anything... (/ for agents)")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.4))
+                                .padding(.leading, 14)
+                                .frame(height: 44)
+                                .allowsHitTesting(false)
+                        }
+                        
+                        // TextEditor for multiline input
+                        TextEditor(text: $viewModel.promptText)
                             .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.4))
-                            .padding(.leading, 14)
-                            .frame(height: 44)
-                            .allowsHitTesting(false)
+                            .foregroundColor(.white)
+                            .focused(isInputFocused)
+                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, isSingleLine ? 12 : 8)
+                            .frame(height: inputHeight)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                    )
+                    .animation(.easeOut(duration: 0.15), value: inputHeight)
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.iBeam.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+                    .onChange(of: viewModel.promptText) { _, text in
+                        // Show agent picker when typing /
+                        if text == "/" {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                viewModel.showAgentPicker = true
+                            }
+                        } else if !text.hasPrefix("/") {
+                            viewModel.showAgentPicker = false
+                        }
                     }
                     
-                    // TextEditor for multiline input
-                    TextEditor(text: $viewModel.promptText)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
-                        .focused(isInputFocused)
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, isSingleLine ? 12 : 8)
-                        .frame(height: inputHeight)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                )
-                .animation(.easeOut(duration: 0.15), value: inputHeight)
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.iBeam.push()
-                    } else {
-                        NSCursor.pop()
+                    // Submit button
+                    Button {
+                        viewModel.submitPrompt()
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(viewModel.promptText.isEmpty && viewModel.attachedImages.isEmpty ? .white.opacity(0.2) : .white.opacity(0.9))
                     }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.promptText.isEmpty && viewModel.attachedImages.isEmpty)
+                    .padding(.bottom, 8)
                 }
-                .onChange(of: viewModel.promptText) { _, text in
-                    // Show agent picker when typing /
-                    if text == "/" {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            viewModel.showAgentPicker = true
-                        }
-                    } else if !text.hasPrefix("/") {
-                        viewModel.showAgentPicker = false
-                    }
-                }
-                
-                // Submit button
-                Button {
-                    viewModel.submitPrompt()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(viewModel.promptText.isEmpty && viewModel.attachedImages.isEmpty ? .white.opacity(0.2) : .white.opacity(0.9))
-                }
-                .buttonStyle(.plain)
-                .disabled(viewModel.promptText.isEmpty && viewModel.attachedImages.isEmpty)
-                .padding(.bottom, 8)
+                .transition(.opacity)
             }
             
             // Attached images preview
@@ -456,8 +476,8 @@ struct PromptInputView: View {
             
             // Keyboard hint
             HStack {
-                Text("\u{21E7}Enter for newline \u{2022} Enter to send \u{2022} Esc to dismiss \u{2022} \u{2318}V to paste images")
-                    .font(.system(size: 11))
+                Text("\u{21E7}Enter newline \u{2022} Enter send \u{2022} Esc dismiss \u{2022} \u{2318}V paste \u{2022} Hold hotkey to dictate")
+                    .font(.system(size: 10))
                     .foregroundColor(.white.opacity(0.3))
             }
         }
@@ -893,3 +913,138 @@ struct ResultView: View {
         viewModel.submitPrompt()
     }
 }
+
+// MARK: - Dictation Waveform View
+
+struct DictationWaveformView: View {
+    let isDictating: Bool
+    let isTranscribing: Bool
+    let audioLevel: Float
+    
+    private let barCount = 24
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            // Microphone icon - smaller
+            ZStack {
+                Circle()
+                    .fill(isDictating ? Color.red : Color.orange)
+                    .frame(width: 28, height: 28)
+                
+                Image(systemName: isDictating ? "mic.fill" : "waveform")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white)
+            }
+            .padding(.leading, 10)
+            
+            // Waveform bars - reactive to audio
+            HStack(spacing: 2) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    AudioLevelBar(
+                        index: index, 
+                        barCount: barCount,
+                        audioLevel: audioLevel,
+                        isActive: isDictating
+                    )
+                }
+            }
+            
+            Spacer()
+            
+            // Status text - more compact
+            if isTranscribing {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 12, height: 12)
+                    Text("Transcribing...")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .padding(.trailing, 10)
+            } else {
+                Text("Release to stop")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.trailing, 10)
+            }
+        }
+        .frame(height: 44)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isDictating ? Color.red.opacity(0.12) : Color.orange.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(isDictating ? Color.red.opacity(0.3) : Color.orange.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct AudioLevelBar: View {
+    let index: Int
+    let barCount: Int
+    let audioLevel: Float
+    let isActive: Bool
+    
+    // Calculate height based on position and audio level
+    private var barHeight: CGFloat {
+        guard isActive else { return 3 }
+        
+        // Create a wave pattern - bars in the middle are taller
+        let center = CGFloat(barCount) / 2.0
+        let distanceFromCenter = abs(CGFloat(index) - center) / center
+        let waveMultiplier = 1.0 - (distanceFromCenter * 0.5)
+        
+        // Base height from audio level
+        let levelHeight = CGFloat(audioLevel) * 24 * waveMultiplier
+        
+        // Add some randomness for natural look
+        let randomOffset = CGFloat.random(in: -2...2)
+        
+        // Minimum height of 3, max of 24
+        return max(3, min(24, levelHeight + 3 + randomOffset))
+    }
+    
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(isActive ? Color.red.opacity(0.7 + Double(audioLevel) * 0.3) : Color.orange.opacity(0.5))
+            .frame(width: 2, height: barHeight)
+            .animation(.easeOut(duration: 0.08), value: audioLevel)
+    }
+}
+
+// MARK: - Speech Model Loading Banner
+
+struct SpeechModelLoadingBanner: View {
+    @ObservedObject var speechService: SpeechService
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .scaleEffect(0.6)
+                .frame(width: 16, height: 16)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Loading Whisper Model")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                
+                Text(speechService.loadingProgress.isEmpty ? speechService.currentModelName : speechService.loadingProgress)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.blue.opacity(0.15))
+        )
+    }
+}
+
+

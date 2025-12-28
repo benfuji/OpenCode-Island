@@ -84,6 +84,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await OpenCodeServerManager.shared.startServer()
         }
+        
+        // Pre-load Whisper model for faster dictation
+        Task {
+            await SpeechService.shared.loadModel()
+        }
 
         // Setup window
         windowManager = WindowManager()

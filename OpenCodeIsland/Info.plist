@@ -24,5 +24,9 @@
     <string>w5NwH5KRfE7LfeZ09J8lWx3UQrWTqUbfH4HHBa1OPRk=</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
+
+    <!-- Microphone Usage for Speech-to-Text -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>OpenCode Island uses your microphone for voice dictation to convert speech to text in your prompts.</string>
 </dict>
 </plist>
