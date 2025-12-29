@@ -65,12 +65,16 @@ class OpenCodeService: ObservableObject {
     
     private let serverManager = OpenCodeServerManager.shared
     
+    // MARK: - Constants
+    
+    private static let defaultPort = 4096
+    
     // MARK: - Initialization
     
     init() {
-        // Client will be initialized when server starts
-        self.client = OpenCodeClient(port: 0, hostname: "127.0.0.1")
-        print("[OpenCodeService] Initialized, waiting for server to start")
+        // Initialize with default port so pre-connect checks can work
+        self.client = OpenCodeClient(port: OpenCodeService.defaultPort, hostname: "127.0.0.1")
+        print("[OpenCodeService] Initialized with default port \(OpenCodeService.defaultPort)")
     }
     
     deinit {
@@ -92,14 +96,53 @@ class OpenCodeService: ObservableObject {
         serverManager.isRunning ? serverManager.workingDirectory : nil
     }
     
-    /// Connect to the OpenCode server (starts server if needed)
+    /// Connect to the OpenCode server (tries existing server first, then starts new one)
     func connect() async {
+        // Guard against duplicate connect attempts
+        guard connectionState != .connecting else {
+            log("Already connecting; ignoring duplicate connect() call.")
+            return
+        }
+        
         log("connect() called, current state: \(connectionState)")
         connectionState = .connecting
         
         do {
+            // First, try connecting to an existing server on the default port
+            log("Checking for existing OpenCode server on port \(OpenCodeService.defaultPort)...")
+            let existingServerClient = OpenCodeClient(port: OpenCodeService.defaultPort, hostname: "127.0.0.1")
+            
+            if await existingServerClient.isServerRunning() {
+                log("Found existing OpenCode server on port \(OpenCodeService.defaultPort)")
+                self.client = existingServerClient
+                
+                // Get health info from existing server
+                let health = try await client.health()
+                serverVersion = health.version
+                log("Existing server health OK, version: \(health.version)")
+                
+                // Clear any old session
+                activeSessionID = nil
+                
+                // Load agents and providers
+                log("Loading agents...")
+                try await loadAgents()
+                log("Loaded \(agents.count) agents")
+                
+                log("Loading providers...")
+                try await loadProviders()
+                
+                connectionState = .connected
+                log("Connected to existing server!")
+                
+                // Start listening to events
+                startEventStream()
+                return
+            }
+            
+            log("No existing server found, starting our own...")
+            
             // Start our own server instance
-            log("Starting OpenCode server...")
             await serverManager.startServer()
             
             guard serverManager.isRunning else {

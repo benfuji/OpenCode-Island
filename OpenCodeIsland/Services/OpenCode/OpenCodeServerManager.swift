@@ -101,15 +101,23 @@ class OpenCodeServerManager: ObservableObject {
             try process.run()
             serverPort = port
             workingDirectory = workingDir
-            isRunning = true
             errorMessage = nil
             print("[ServerManager] Server process started with PID: \(process.processIdentifier)")
             
             // Start reading output in background
             startReadingOutput()
             
-            // Wait a moment for server to initialize
-            try? await Task.sleep(for: .milliseconds(800))
+            // Wait for server to become healthy with retry loop
+            let healthy = await waitForServerReady(port: port, timeout: 10.0)
+            if healthy {
+                isRunning = true
+                print("[ServerManager] Server is healthy and ready")
+            } else {
+                print("[ServerManager] Server failed to become healthy within timeout")
+                errorMessage = "Server started but failed to respond. Check if OpenCode is working correctly."
+                stopServer()
+                return
+            }
             
         } catch {
             errorMessage = "Failed to start server: \(error.localizedDescription)"
@@ -164,6 +172,41 @@ class OpenCodeServerManager: ObservableObject {
     
     // MARK: - Private Helpers
     
+    /// Wait for the server to become ready by polling the health endpoint
+    /// Runs off the main actor to avoid blocking UI during startup
+    private func waitForServerReady(port: Int, timeout: TimeInterval) async -> Bool {
+        // Capture process reference for the detached task
+        let process = self.serverProcess
+        
+        // Run the polling loop off the main actor to avoid blocking UI
+        let result = await Task.detached { [process] () -> Bool in
+            let client = OpenCodeClient(port: port, hostname: "127.0.0.1")
+            let startTime = Date()
+            let pollInterval: UInt64 = 250_000_000 // 250ms in nanoseconds
+            
+            print("[ServerManager] Waiting for server to become ready (timeout: \(timeout)s)...")
+            
+            while Date().timeIntervalSince(startTime) < timeout {
+                if await client.isServerRunning() {
+                    return true
+                }
+                
+                // Check if process died (use captured reference)
+                if process == nil || !(process?.isRunning ?? false) {
+                    print("[ServerManager] Server process died while waiting for ready state")
+                    return false
+                }
+                
+                try? await Task.sleep(nanoseconds: pollInterval)
+            }
+            
+            print("[ServerManager] Timeout waiting for server to become ready")
+            return false
+        }.value
+        
+        return result
+    }
+    
     /// Find an available port for the server
     private func findAvailablePort() -> Int {
         // Start from a random port in a high range to avoid conflicts
@@ -202,12 +245,20 @@ class OpenCodeServerManager: ObservableObject {
     
     /// Find the opencode binary in common locations
     private func findOpencodeBinary() -> String? {
-        let home = NSHomeDirectory()
+        // Use FileManager for proper home directory (works correctly even in sandboxed apps)
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        
+        print("[ServerManager] Looking for opencode binary (home: \(home))")
         
         // Check all common installation paths
         let possiblePaths = [
-            // OpenCode default
+            // OpenCode default (highest priority)
             "\(home)/.opencode/bin/opencode",
+            // Homebrew (system-wide, always accessible)
+            "/opt/homebrew/bin/opencode",
+            "/usr/local/bin/opencode",
+            // Generic local
+            "\(home)/.local/bin/opencode",
             // Bun
             "\(home)/.bun/bin/opencode",
             // npm/pnpm global
@@ -219,15 +270,10 @@ class OpenCodeServerManager: ObservableObject {
             "\(home)/.n/bin/opencode",
             "\(home)/.volta/bin/opencode",
             "\(home)/.fnm/aliases/default/bin/opencode",
-            // Homebrew
-            "/opt/homebrew/bin/opencode",
-            "/usr/local/bin/opencode",
             // Go
             "\(home)/go/bin/opencode",
             // Cargo/Rust
             "\(home)/.cargo/bin/opencode",
-            // Generic local
-            "\(home)/.local/bin/opencode",
             // System
             "/usr/bin/opencode"
         ]
@@ -245,15 +291,32 @@ class OpenCodeServerManager: ObservableObject {
             }
         }
         
-        // Also check current process PATH (may be limited for GUI apps)
+        // Build an augmented PATH for discovery (GUI apps have limited PATH)
+        // Note: 'home' is already defined at the top of this function
+        var pathDirs: [String] = [
+            // Common install locations that may not be in GUI app PATH
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "\(home)/.opencode/bin",
+            "\(home)/.local/bin",
+            "\(home)/.bun/bin",
+        ]
+        
+        // Add existing PATH entries
         if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
-            let pathDirs = pathEnv.split(separator: ":").map(String.init)
-            for dir in pathDirs {
-                let fullPath = "\(dir)/opencode"
-                if FileManager.default.isExecutableFile(atPath: fullPath) {
-                    print("[ServerManager] Found opencode in PATH at: \(fullPath)")
-                    return fullPath
-                }
+            pathDirs.append(contentsOf: pathEnv.split(separator: ":").map(String.init))
+        }
+        
+        // Deduplicate while preserving order
+        var seenDirs = Set<String>()
+        for dir in pathDirs {
+            guard !seenDirs.contains(dir) else { continue }
+            seenDirs.insert(dir)
+            
+            let fullPath = "\(dir)/opencode"
+            if FileManager.default.isExecutableFile(atPath: fullPath) {
+                print("[ServerManager] Found opencode in augmented PATH at: \(fullPath)")
+                return fullPath
             }
         }
         
